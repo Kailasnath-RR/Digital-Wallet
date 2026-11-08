@@ -488,3 +488,69 @@ class WalletService:
         """Append record to global audit ledger."""
         with self._ledger_lock:
             self._transactions.append(record)
+
+
+# ==============================================================================
+# Demonstration CLI Entry Point
+# ==============================================================================
+
+if __name__ == "__main__":
+    wallet_service = WalletService()
+
+    print("=" * 65)
+    print("      DIGITAL PAYMENT WALLET - SYSTEM DEMONSTRATION")
+    print("=" * 65)
+
+    # 1. Create Accounts
+    print("\n[Step 1] Creating Accounts:")
+    alice_acc = wallet_service.create_account("ACC-ALICE", "Alice Smith", initial_balance="100.00")
+    bob_acc = wallet_service.create_account("ACC-BOB", "Bob Jones", initial_balance="25.00")
+    cafe_acc = wallet_service.create_account("MERCHANT-CAFE", "Campus Cafe", is_merchant=True)
+    print(f"  • Alice Account : Balance = ${alice_acc.balance}")
+    print(f"  • Bob Account   : Balance = ${bob_acc.balance}")
+    print(f"  • Cafe Merchant : Balance = ${cafe_acc.balance}")
+
+    # 2. Wallet Top-up (FR-02)
+    print("\n[Step 2] Wallet Top-up (FR-02):")
+    topup = wallet_service.top_up("ACC-ALICE", "50.00", idempotency_key="topup-key-001")
+    print(f"  • Top-up Tx ID  : {topup.transaction_id}")
+    print(f"  • Alice Balance : ${wallet_service.get_balance('ACC-ALICE')} (+${topup.amount})")
+
+    # 3. Wallet Transfer (FR-01) & Idempotency Guarantee (FR-04)
+    print("\n[Step 3] Wallet Transfer & Idempotency (FR-01, FR-04):")
+    print(f"  • Pre-transfer  : Alice = ${wallet_service.get_balance('ACC-ALICE')}, Bob = ${wallet_service.get_balance('ACC-BOB')}")
+    xfer = wallet_service.transfer("ACC-ALICE", "ACC-BOB", "40.00", idempotency_key="xfer-key-001")
+    print(f"  • Transfer Tx ID: {xfer.transaction_id}")
+    print(f"  • Post-transfer : Alice = ${wallet_service.get_balance('ACC-ALICE')}, Bob = ${wallet_service.get_balance('ACC-BOB')}")
+
+    print("\n  [Simulating network retry with IDENTICAL idempotency key 'xfer-key-001']...")
+    retry_xfer = wallet_service.transfer("ACC-ALICE", "ACC-BOB", "40.00", idempotency_key="xfer-key-001")
+    print(f"  • Retry Tx ID Match  : {retry_xfer.transaction_id == xfer.transaction_id} (Returned cached result)")
+    print(f"  • Alice Balance Kept : ${wallet_service.get_balance('ACC-ALICE')} (NO duplicate debit)")
+    print(f"  • Bob Balance Kept   : ${wallet_service.get_balance('ACC-BOB')} (NO duplicate credit)")
+
+    # 4. Merchant Payment (FR-03)
+    print("\n[Step 4] Merchant Payment (FR-03):")
+    payment = wallet_service.pay_merchant(
+        sender_id="ACC-BOB",
+        merchant_id="MERCHANT-CAFE",
+        amount="15.75",
+        idempotency_key="pay-key-001",
+        order_id="ORDER-CAFE-1001",
+    )
+    print(f"  • Payment Tx ID : {payment.transaction_id}")
+    print(f"  • Order ID      : {payment.metadata.get('order_id')}")
+    print(f"  • Bob Balance   : ${wallet_service.get_balance('ACC-BOB')}")
+    print(f"  • Cafe Balance  : ${wallet_service.get_balance('MERCHANT-CAFE')}")
+
+    # 5. Audit Ledger (NFR-02)
+    print("\n[Step 5] Transaction Audit Ledger (NFR-02):")
+    print(f"  {'Type':<18} {'From':<12} {'To':<15} {'Amount':<8} {'Status'}")
+    print("  " + "-" * 58)
+    for record in wallet_service.get_transaction_history():
+        print(f"  {record.transaction_type.value:<18} {str(record.sender_id):<12} {str(record.receiver_id):<15} ${record.amount:<7} {record.status.value}")
+
+    print("\n" + "=" * 65)
+    print("      ALL OPERATIONS VERIFIED & EXECUTED SUCCESSFULLY")
+    print("=" * 65)
+

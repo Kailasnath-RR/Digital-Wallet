@@ -1,21 +1,5 @@
 """Digital Payment Wallet Package."""
 
-from .wallet import (
-    AccountNotFoundError,
-    AccountSuspendedError,
-    IdempotencyConflictError,
-    InsufficientFundsError,
-    InvalidAmountError,
-    InvalidMerchantError,
-    SelfTransferError,
-    TransactionRecord,
-    TransactionStatus,
-    TransactionType,
-    WalletAccount,
-    WalletError,
-    WalletService,
-)
-
 __all__ = [
     "WalletService",
     "WalletAccount",
@@ -31,3 +15,15 @@ __all__ = [
     "IdempotencyConflictError",
     "InvalidMerchantError",
 ]
+
+
+def __getattr__(name: str):
+    if name in __all__:
+        import importlib
+        wallet_module = importlib.import_module(".wallet", package=__name__)
+        return getattr(wallet_module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return __all__
